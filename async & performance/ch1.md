@@ -99,4 +99,68 @@ a.index++;
 
 有时候在 debug 的时候，如果出现了 **console.log(...)** 与预期不符的情况，就考虑下是不是因为 异步 **I/O** 接口缓慢，从而执行了其他的代码导致的。（我就碰到过这事，一直调试到7点半...）。
 
-注意：
+注意：如果你真的遇到了这种情况，有两条路供你选择，其一，使用断点代替 **console.log(...)**，其二，使用 **JSON.stringify(...)** 代替 **console.log(...)**， 输出对象的 JSON 字符串。
+
+## Event loop
+怎么说，其实不管你的异步代码看起来多么的清晰直接，其实直到现在的 **ES6**，在 **javaScript** 的内部并没有相关的异步的语法概念。
+
+其实 **javaScript** 引擎只做意见事，给定一个时间点，让它执行一段代码块。
+
+谁给?浏览器爸爸。
+
+其实 **javaScript** 引擎并不是单独运行，它依赖于运行的环境，对于大部分开发者（就像我）来说，这个环境是浏览器爸爸。当然现在 **node** 的出现让 **javaScript** 有能力在服务端运行，这是后话了。。。
+
+浏览器爸爸（下面简称 **js环境**）有自己的机制去控制何时触发 **js引擎**，这个机制叫 **event loop**。 **javaScript** 把整个代码切分成一个个单独的代码块，供 **js环境** 调用，每个单独的代码块我们用 **event** 表示。
+
+举个栗子，当你的 **javaScript** 程序制造了一个 **ajax** 请求去服务器获取数据，
+通常情况下你会写一个 **callback**，让后告诉 **js环境**，‘嘿，这段代码你先
+不要执行，等到我的 **ajax** 请求获取到数据之后了，你再执行’。
+
+然后 **js环境** 就会监听这个请求，获取到数据之后将之前悬置的 **callback** 
+加入 **event loop**。
+
+**event loop** 怎么玩？请看下面代码。
+``` javaScript
+// `eventLoop` is an array that acts as a queue (first-in, first-out)
+var eventLoop = [ ];
+var event;
+
+// keep going "forever"
+while (true) {
+	// perform a "tick"
+	if (eventLoop.length > 0) {
+		// get the next event in the queue
+		event = eventLoop.shift();
+
+		// now, execute the next event
+		try {
+			event();
+		}
+		catch (err) {
+			reportError(err);
+		}
+	}
+}
+```
+你可以看到，我设置了一个永远不会结束循环的 **while 循环**，在 **while 循环**
+ 中，每一次迭代我们叫一次 **tick**，每个 **tick** ，如果 **eventLoop** 里面
+ 有 **event**，取出来执行。上面说的你设置的 **ajax** 请求的 **callback** 
+ 就是加入到当前的 **eventLoop** 末尾。
+
+ 所以单独把 **event** 加入到 **eventLoop** 中，**event** 可能并不会马上执行。
+ 如果在 **event** 之上还有 20 个 **event**，那么你的 **callback** 将会等到
+ 那 20 个  **event** 执行完毕了之后再执行。这就解释了 **setTimeout(...)** 
+ 为什么有时候并不是准确的按时间执行，因为在它定义的 **callback** 执行之前，可能
+ 还有别的程序正在执行。使用 **setTimeout(...)** 你只能保证它在某个时间点之前不
+ 会执行，不能保证在某个时间点一定会执行。
+
+ 你编写的 **javaScript** 代码，被分成若干个 **event** 之后加入到 **event loop**
+ 中来，按  **event loop** 的顺序执行。
+
+ 注意：我们刚才提到的 **ES6**,它有一个 API **Promise** 提供了更好的 **event loop** 管理
+ 能力，它将 **event loop** 的控制权从浏览器爸爸手中抢了回来，这个在第三章再说。
+
+ ## Parallel Threading
+
+ 
+
