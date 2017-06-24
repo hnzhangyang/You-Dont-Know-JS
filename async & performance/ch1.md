@@ -270,7 +270,7 @@ function bar() {
 ajax( "http://some.url.1", foo );
 ajax( "http://some.url.2", bar );
  ```
-因为 foo 与 bar 谁也不能发端谁的执行，所以最后的结果取决与两个 ajax 谁先获取到数据。
+因为 foo 与 bar 谁也不能妨碍谁的执行，所以最后的结果取决与两个 ajax 谁先获取到数据。
 但是如果提供了多线程的能力，foo 与 bar 一起执行，那么问题就很多了。
 
 下面的代码 Chunk 1 是同步执行，Chunk 2 和 Chunk 3 是异步执行。
@@ -339,4 +339,456 @@ b; // 180
 注意：上面说的不打扰原则（run-to-completion），在 ES6 的新 API Generators 中是
 不适用的，这个以后再说。
 
-## oncurrency
+## Concurrency
+想象有一个需求：
+- 1、展示一个信息列表
+- 2、当用户往下翻的时候，信息列表自动加载更多
+
+要实现这个需求，我们需要以上两个功能同时进行。一个用来监听 onscroll
+ 事件，当 onscroll 事件触发时发送 ajax 请求至服务器，请求数据。
+ 另一个用来展示数据，当浏览器收到服务器传回来的值时，渲染新值。
+
+ 显然，如果用户疯狂往下滑，并且服务器又不给力，那就会同时触发 N 个
+ onscroll 事件， N 个 ajax 请求。 ajax 请求到数据以后渲染，相互交错，
+ 相辅相生...
+
+ 功能 1：
+``` javaScript
+onscroll, request 1
+onscroll, request 2
+onscroll, request 3
+onscroll, request 4
+onscroll, request 5
+onscroll, request 6
+onscroll, request 7
+```
+功能 2：
+``` javaScript
+response 1
+response 2
+response 3
+response 4
+response 5
+response 6
+response 7
+```
+很有可能两个方法同时发生：
+``` javaScript
+onscroll, request 1
+onscroll, request 2          response 1
+onscroll, request 3          response 2
+response 3
+onscroll, request 4
+onscroll, request 5
+onscroll, request 6          response 4
+onscroll, request 7
+response 6
+response 5
+response 7
+```
+但是就像之前提到的，javaScript 一次只能干一件事情，这两个方法必定执行顺序有
+先后。具体顺序看 event loop。
+``` javaScript
+onscroll, request 1   <--- Process 1 starts
+onscroll, request 2
+response 1            <--- Process 2 starts
+onscroll, request 3
+response 2
+response 3
+onscroll, request 4
+onscroll, request 5
+onscroll, request 6
+response 4
+onscroll, request 7   <--- Process 1 finishes
+response 6
+response 5
+response 7            <--- Process 2 finishes
+```
+可能在浏览器层面，两个方法可以同时添加进 event loop ，具体执行顺序还是得看
+event loop 中事件的顺序。
+
+但是有一点你发现没有，response 6 和 response 5 顺序似乎颠倒了。为什么？
+
+## Noninteracting
+当多个代码片段交叉运行时，如果这几个代码片段没有交互，那一般就没什么问题。
+
+举个栗子
+``` javaScript
+var res = {};
+
+function foo(results) {
+	res.foo = results;
+}
+
+function bar(results) {
+	res.bar = results;
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+foo 与 bar 是并行的 ajax 请求的回调函数，我们不知道那个 ajax 请求会
+先收到数据，所以也就不知道 foo 或 bar 哪个先触发，但是这没什么问题，我们
+根本不用担心这个，因为这两个回调函数独立运行，并没有交互。他们没有竞争问题
+（race condition）。 
+
+## Interaction
+当两个方法共享资源的时候，就容易出现问题。当然不单单是指上述的 ajax 与 dom 的
+交互。一旦程序有可能出现这种问题，需要实现协调。
+
+请看下面代码：
+``` javaScript
+var res = [];
+
+function response(data) {
+	res.push( data );
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", response );
+ajax( "http://some.url.2", response );
+```
+两个 ajax 请求的回调函数都是将服务器返回的值放进 res 数组，但是我们没办法
+预料数组中两个返回值的先后顺序，因为两个 ajax 不知道哪个先触发回调。
+
+一般处理方法是添加条件判断：
+``` javaScript
+var res = [];
+
+function response(data) {
+	if (data.url == "http://some.url.1") {
+		res[0] = data;
+	}
+	else if (data.url == "http://some.url.2") {
+		res[1] = data;
+	}
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", response );
+ajax( "http://some.url.2", response );
+```
+这样一来，不管哪个 ajax 请求先触发回调，res 中的资源顺序总是确定的，这样处理
+后在一定程度上就解决了两个 ajax 请求的竞争问题。
+
+同样的方法也适用于当多个回调函数共享一个 dom 节点时，比如一个回调函数是更新
+节点内容，另一个更新节点 style 或者 attributes 。一般情况下，你最好判断下
+当多个回调都触发时，在渲染节点，这样效果更好。
+
+再看一个栗子：
+``` javaScript
+var a, b;
+
+function foo(x) {
+	a = x * 2;
+	baz();
+}
+
+function bar(y) {
+	b = y * 2;
+	baz();
+}
+
+function baz() {
+	console.log(a + b);
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+上面的代码中，不管 foo 或者 bar 哪个回调先触发，他们都会最终触发 baz。
+如果不做处理，不管哪个先，都会出现问题， a 或者 b 总有一个值时 undefined。
+
+对于以上情况，有一个简单的处理办法：
+``` javaScript
+var a, b;
+
+function foo(x) {
+	a = x * 2;
+	if (a && b) {
+		baz();
+	}
+}
+
+function bar(y) {
+	b = y * 2;
+	if (a && b) {
+		baz();
+	}
+}
+
+function baz() {
+	console.log( a + b );
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+我们在函数体中加了一个条件判断 a && b，这样就控制了只有两个 ajax 请求
+都成功回调时，才触发最终的 baz 函数。
+
+有时候你希望几个 ajax 请求中，只有最先回调的 ajax 请求有效，其他的无效，
+,如果不做处理的话，会出问题。
+
+请看下面代码：
+
+``` javaScript
+var a;
+
+function foo(x) {
+	a = x * 2;
+	baz();
+}
+
+function bar(x) {
+	a = x / 2;
+	baz();
+}
+
+function baz() {
+	console.log( a );
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+不管 foo ，bar 哪个先触发，一定会后面的回调值覆盖前一个回调值，这于我们的
+初衷相悖，我们可以做以下处理：
+``` javaScript
+var a;
+
+function foo(x) {
+	if (a == undefined) {
+		a = x * 2;
+		baz();
+	}
+}
+
+function bar(x) {
+	if (a == undefined) {
+		a = x / 2;
+		baz();
+	}
+}
+
+function baz() {
+	console.log( a );
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+a == undefined 条件让我们忽略掉了后续出现的回调，这样就解决了问题。
+
+## Cooperation
+还有一个就是合作问题，它不是关于多个函数共享一份数据，而是在多个函数中
+，当一个函数运行事件较长时，会影响体验。
+
+再来个栗子：
+``` javaScript
+var res = [];
+
+// `response(..)` receives array of results from the Ajax call
+function response(data) {
+	// add onto existing `res` array
+	res = res.concat(
+		// make a new transformed array with all `data` values doubled
+		data.map( function(val){
+			return val * 2;
+		} )
+	);
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", response );
+ajax( "http://some.url.2", response );
+```
+不管哪个 ajax 回调，都会触发 data.map() 方法，当 data 的成员较少时，并不会有什么
+问题，但是如果 data 返回的数据有几千万条，那么 data.map() 方法就需要一段
+相当可观的时间去运行。
+
+结合之前说的，当一个回调运行时，其他的函数都不能运行，此时，一切交互都无效，
+这事就有点麻烦了。
+
+为了友好的交互，你当然需要处理这些问题，比如：
+``` javaScript
+var res = [];
+
+// `response(..)` receives array of results from the Ajax call
+function response(data) {
+	// let's just do 1000 at a time
+	var chunk = data.splice( 0, 1000 );
+
+	// add onto existing `res` array
+	res = res.concat(
+		// make a new transformed array with all `chunk` values doubled
+		chunk.map( function(val){
+			return val * 2;
+		} )
+	);
+
+	// anything left to process?
+	if (data.length > 0) {
+		// async schedule next batch
+		setTimeout( function(){
+			response( data );
+		}, 0 );
+	}
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", response );
+ajax( "http://some.url.2", response );
+```
+以上代码中，每次切割一部分 data 的数据运行，剩下的放入下一个事件流中执行，
+这个方法也在一定程度上缓解了当 data 数据量过多时，会堵塞交互的问题。
+
+## Jobs
+之前有提到说 event loop 队列，它表示浏览器执行 JS 的顺序，在 ES6 中
+加入了新的 API Promise , Promise 操控一个叫 "Job" 的队列。
+
+原作者在这里写了一大段话，简单来说就是 Job 于 event 共处于 一个 loop 中， 
+Job 是 VIP 它在不管在队列中哪个位置，它总是优先运行。
+
+而 Promise 返回的就是一个 job 事件，添加到 event loop 中。
+
+作者还举了一个简单的栗子：
+``` javaScript
+console.log( "A" );
+
+setTimeout( function(){
+	console.log( "B" );
+}, 0 );
+
+// theoretical "Job API"
+schedule( function(){
+	console.log( "C" );
+
+	schedule( function(){
+		console.log( "D" );
+	} );
+} );
+```
+在寻常情况中，你可能会以为输出的是 A B C D 。但是实际上是 A C D B，因为
+Job 事件是 VIP 嘛。
+
+详细细节再第三章中会详细讨论。
+
+## Statement Ordering
+这里有一个有趣的事情。
+
+js 引擎不一定会按我们声明语句的格式去执行我们声明的语句... 呃，有点拗口
+，有点陌生，没关系，下面将会详细讲到。
+
+在这之前，需要强调的是，在 javaScript 中语法有详细的规定，我们接下来说的东西
+在你的代码中是起作用，但是却是观察不到的。
+
+考虑以下代码：
+``` javaScript
+var a, b;
+
+a = 10;
+b = 30;
+
+a = a + 1;
+b = b + 1;
+
+console.log( a + b ); // 42
+```
+上面代码中没有异步语法，正常情况下，它是从上到下一行一行执行过来的。
+
+但是到了执行的时候，js 引擎为了更高的效率，会预编译你的代码（详情见 Scope & Closures 一章）。
+
+例如变成：
+``` javaScript
+var a, b;
+
+a = 10;
+a++;
+
+b = 30;
+b++;
+
+console.log( a + b ); // 42
+```
+或者：
+``` javaScript
+var a, b;
+
+a = 11;
+b = 31;
+
+console.log( a + b ); // 42
+```
+甚至：
+``` javaScript
+// because `a` and `b` aren't used anymore, we can
+// inline and don't even need them!
+console.log( 42 ); // 42
+```
+所有的这些，都是 js 引擎采取的安全的编译，所以它运行效率更高，而且结果并不会改变。
+
+但是有一些情况，这些编译变变得有点问题。
+``` javaScript
+var a, b;
+
+a = 10;
+b = 30;
+
+// we need `a` and `b` in their preincremented state!
+console.log( a * b ); // 300
+
+a = a + 1;
+b = b + 1;
+
+console.log( a + b ); // 42
+```
+还有一些情况，编译会造成可见的影响。
+``` javaScript
+function foo() {
+	console.log( b );
+	return 1;
+}
+
+var a, b, c;
+
+// ES5.1 getter literal syntax
+c = {
+	get bar() {
+		console.log( a );
+		return 1;
+	}
+};
+
+a = 10;
+b = 30;
+
+a += foo();				// 30
+b += c.bar;				// 11
+
+console.log( a + b );	// 42
+```
+如果没有 console.log(...) 语句，一切都很好，但是如果有。
+``` javaScript
+// ...
+
+a = 10 + foo();
+b = 30 + c.bar;
+
+// ...
+```
+
+## Review
+javaScript 代码会分成几个代码块按顺序执行，几个代码块共享整个程序的资源，前一个
+代码块的执行可能会对后面的代码块有影响。
+
+event loop 总是按添加顺序从上到下执行，每次迭代叫一次 “tick”。
+
+js 引擎每次只能执行一个任务，每次执行的时候，可能会添加更多的任务进入 event loop。
+
+当一个或多个任务交互运行且共享资源时，可能会出现一系列并发问题，此时需要人为优化。
