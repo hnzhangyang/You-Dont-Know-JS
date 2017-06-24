@@ -162,5 +162,124 @@ while (true) {
 
  ## Parallel Threading
 
+多线程和异步是很容易混淆的事情，即使他们有很大的不同，一般而言，**异步是指一段代码块何时运行**，而**多线程是几个不同的代码块一起运行**。
+  
+对于多线程而言，我们一般想到线程（processes）和进程（threads），他们可以独立运行。
+有时候几个线程甚至几台计算机都一起运行。几个进程一起运行的时候他们可以共享一个
+线程的资源。
+
+用 event loop 做对比比， event loop 每次只能干一件事，而多线程可以同时干几件事。他们是有很大区别的。
+
+举个栗子。
+``` javaScript
+function later() {
+	answer = answer * 2;
+	console.log( "Meaning of life:", answer );
+}
+```
+想象以上代码是 event loop 中的一个 event，这个 event 执行起来先要取到 answer 的值，然后
+才能执行 answer = answer * 2，然后才能打印 console.log( "Meaning of life:", answer )。一切
+都需要按顺序来。
+
+在单线程环境，这不会有什么问题。因为没有程序可以打乱一个程序的执行（它每次只能执行一个程序片段嘛），
+但是到了多线程，我们有几个程序片段同时运行，并且共享资源。这就会导致一些不可预期的行为了。
+``` javaScript
+var a = 20;
+
+function foo() {
+	a = a + 1;
+}
+
+function bar() {
+	a = a * 2;
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+```
+在 javaScript 的单线程环境中，以上代码如果 foo 先执行， a = 42，反之 a = 41。
+
+假设，如果 javaScript 拥有多线程的能力，foo 于 bar 可以同时运行，并且共享资源。那么事情
+就有点难办了。我把 foo 与 bar 运行时的大概步骤写出来了， X 于 Y 均是临时变量，考虑下如果这两个流程一起运行，将会
+发生什么事情。
+
+foo
+``` javaScript
+ foo():
+  a. load value of `a` in `X`
+  b. store `1` in `Y`
+  c. add `X` and `Y`, store result in `X`
+  d. store value of `X` in `a`
+``` 
+
+bar 
+``` javaScript
+bar():
+  a. load value of `a` in `X`
+  b. store `2` in `Y`
+  c. multiply `X` and `Y`, store result in `X`
+  d. store value of `X` in `a`
+```
+当 foo 与 bar 一起运行的时候，如果按一下流程进行，a 最后取什么值？
+``` javaScript
+1a  (load value of `a` in `X`   ==> `20`)
+2a  (load value of `a` in `X`   ==> `20`)
+1b  (store `1` in `Y`   ==> `1`)
+2b  (store `2` in `Y`   ==> `2`)
+1c  (add `X` and `Y`, store result in `X`   ==> `22`)
+1d  (store value of `X` in `a`   ==> `22`)
+2c  (multiply `X` and `Y`, store result in `X`   ==> `44`)
+2d  (store value of `X` in `a`   ==> `44`)
+```
+好了 a = 44,我们换一种方式。
+ ``` javaScript
+1a  (load value of `a` in `X`   ==> `20`)
+2a  (load value of `a` in `X`   ==> `20`)
+2b  (store `2` in `Y`   ==> `2`)
+1b  (store `1` in `Y`   ==> `1`)
+2c  (multiply `X` and `Y`, store result in `X`   ==> `20`)
+1c  (add `X` and `Y`, store result in `X`   ==> `21`)
+1d  (store value of `X` in `a`   ==> `21`)
+2d  (store value of `X` in `a`   ==> `21`)
+ ```
+ 最后 a = 21。
+
+ 可以看出，在多线程编程中，如果你不阻止以上问题的发生，那么你就有可能发生问题 :) 
+
+ javaScript 从来就没有多线程的能力，所以以上情况不会发生。但是这不代表这类问题
+ 永远不可能在 javaScript 编程中发生，比如说之前举得栗子，两个 ajax 请求因为触发的
+ callback 顺序不同，返回的结果还是有不同滴。
+
+ 注意：如果你还没有遇到此类情况，也不要紧张，其实有时候这些情况并不会导致问题，或者
+ 有时候这些情况的确会导致问题... 呃，接下去看把。
+
+ ## Run-to-Completion
  
+ 因为 javaScript 是单线程，foo 与 bar 作为 其中的两个代码块，当 foo 执行的时候，bar 不能打扰它，
+ 它会一直运行到代码块结束。反之亦然，这叫做不打扰原则（Run-to-Completion）。
+ 
+ 现在我给 bar 与 foo 加一点内容，让不打扰原则体现的更明显。
+ ``` javaScript
+var a = 1;
+var b = 2;
+
+function foo() {
+	a++;
+	b = b * a;
+	a = b + 3;
+}
+
+function bar() {
+	b--;
+	a = 8 + b;
+	b = a * 2;
+}
+
+// ajax(..) is some arbitrary Ajax function given by a library
+ajax( "http://some.url.1", foo );
+ajax( "http://some.url.2", bar );
+ ```
+
+
 
