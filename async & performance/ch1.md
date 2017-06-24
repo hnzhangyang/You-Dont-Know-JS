@@ -65,11 +65,11 @@ console.log( "Meaning of life:", answer );
 任何时候你指定一段函数在某一个事件点执行（计时器，鼠标点击，Ajax 异步请求等等），你就编写了一个延迟函数，也就是异步函数。
 
 ## console
-这里不想也不会解释 **console** 这个方法的运行机制，因为它不是 javaScript 的规范，实际上， **console** 这个方法是由宿主环境，也就是浏览器提供的（详细请看 Types & Grammar 一节）。
+这里不想也不会解释 console 这个方法的运行机制，因为它不是 javaScript 的规范，实际上， console 这个方法是由宿主环境，也就是浏览器提供的（详细请看 Types & Grammar 一节）。
 
-**console** 方法的行为取决于浏览器爸爸，他怎么高兴怎么来，这容易导致一些功能上的分歧，或许会使你困惑。
+console 方法的行为取决于浏览器爸爸，他怎么高兴怎么来，这容易导致一些功能上的分歧，或许会使你困惑。
 
-有时候，在一些浏览器，或者满足某种条件下， **console.log(...)** 不会立即输出你想要的值。主要原因是因为 I/O 接口非常缓慢，它阻塞了程序的执行（不单单是阻塞JS），为了避免这种情况，浏览器爸爸选择异步执行 **console.log(...)** 方法，这件事以前大概你没听过（反正我是没听过）。
+有时候，在一些浏览器，或者满足某种条件下， console.log(...) 不会立即输出你想要的值。主要原因是因为 I/O 接口非常缓慢，它阻塞了程序的执行（不单单是阻塞JS），为了避免这种情况，浏览器爸爸选择异步执行 console.log(...) 方法，这件事以前大概你没听过（反正我是没听过）。
 
 有一种不是很普遍，但是有可能发生的情况是，请看下面代码。
 ``` javaScript
@@ -83,33 +83,33 @@ console.log( a ); // ??
 // even later
 a.index++;
 ```
-通常情况下，我们希望 **console.log(...)** 能准确的输出 a 的值({index: 1})。事实上，由于后面的 **a.index++** 修改了 a 的值，我们实际上看到的是 {index: 2}。
+通常情况下，我们希望 console.log(...) 能准确的输出 a 的值({index: 1})。事实上，由于后面的 a.index++ 修改了 a 的值，我们实际上看到的是 {index: 2}。
 
-为什么呢？上面说到浏览器的 **console.log(...)** 采用的是异步处理，又因为 **I/O** 接口比较慢，正当浏览器后台处理这个 **I/O** 接口的时候，**a.index++** 执行了... 所以输出来的值就是 {index: 2}。
+为什么呢？上面说到浏览器的 console.log(...) 采用的是异步处理，又因为 I/O 接口比较慢，正当浏览器后台处理这个 I/O 接口的时候，a.index++ 执行了... 所以输出来的值就是 {index: 2}。
 
-有时候在 debug 的时候，如果出现了 **console.log(...)** 与预期不符的情况，就考虑下是不是因为 异步 **I/O** 接口缓慢，从而执行了其他的代码导致的。（我就碰到过这事，一直调试到7点半...）。
+有时候在 debug 的时候，如果出现了 console.log(...) 与预期不符的情况，就考虑下是不是因为 异步 I/O 接口缓慢，从而执行了其他的代码导致的。（我就碰到过这事，一直调试到7点半...）。
 
-注意：如果你真的遇到了这种情况，有两条路供你选择，其一，使用断点代替 **console.log(...)**，其二，使用 **JSON.stringify(...)** 代替 **console.log(...)**， 输出对象的 JSON 字符串。
+注意：如果你真的遇到了这种情况，有两条路供你选择，其一，使用断点代替 console.log(...)，其二，使用 JSON.stringify(...) 代替 console.log(...)， 输出对象的 JSON 字符串。
 
 ## Event loop
-怎么说，其实不管你的异步代码看起来多么的清晰直接，其实直到现在的 **ES6**，在 **javaScript** 的内部并没有相关的异步的语法概念。
+怎么说，其实不管你的异步代码看起来多么的清晰直接，其实直到现在的 ES6，在 javaScript 的内部并没有相关的异步的语法概念。
 
-其实 **javaScript** 引擎只做意见事，给定一个时间点，让它执行一段代码块。
+其实 javaScript 引擎只做意见事，给定一个时间点，让它执行一段代码块。
 
 谁给?浏览器爸爸。
 
-其实 **javaScript** 引擎并不是单独运行，它依赖于运行的环境，对于大部分开发者（就像我）来说，这个环境是浏览器爸爸。当然现在 **node** 的出现让 **javaScript** 有能力在服务端运行，这是后话了。。。
+其实 javaScript 引擎并不是单独运行，它依赖于运行的环境，对于大部分开发者（就像我）来说，这个环境是浏览器爸爸。当然现在 node 的出现让 javaScript 有能力在服务端运行，这是后话了。。。
 
-浏览器爸爸（下面简称 **js环境**）有自己的机制去控制何时触发 **js引擎**，这个机制叫 **event loop**。 **javaScript** 把整个代码切分成一个个单独的代码块，供 **js环境** 调用，每个单独的代码块我们用 **event** 表示。
+浏览器爸爸（下面简称 js环境）有自己的机制去控制何时触发 js引擎，这个机制叫 event loop。 javaScript 把整个代码切分成一个个单独的代码块，供 js环境 调用，每个单独的代码块我们用 event 表示。
 
-举个栗子，当你的 **javaScript** 程序制造了一个 **ajax** 请求去服务器获取数据，
-通常情况下你会写一个 **callback**，让后告诉 **js环境**，‘嘿，这段代码你先
-不要执行，等到我的 **ajax** 请求获取到数据之后了，你再执行’。
+举个栗子，当你的 javaScript 程序制造了一个 ajax 请求去服务器获取数据，
+通常情况下你会写一个 callback，让后告诉 js环境，‘嘿，这段代码你先
+不要执行，等到我的 ajax 请求获取到数据之后了，你再执行’。
 
-然后 **js环境** 就会监听这个请求，获取到数据之后将之前悬置的 **callback** 
-加入 **event loop**。
+然后 js环境 就会监听这个请求，获取到数据之后将之前悬置的 callback 
+加入 event loop。
 
-**event loop** 怎么玩？请看下面代码。
+event loop 怎么玩？请看下面代码。
 ``` javaScript
 // `eventLoop` is an array that acts as a queue (first-in, first-out)
 var eventLoop = [ ];
@@ -132,23 +132,23 @@ while (true) {
 	}
 }
 ```
-你可以看到，我设置了一个永远不会结束循环的 **while 循环**，在 **while 循环**
- 中，每一次迭代我们叫一次 **tick**，每个 **tick** ，如果 **eventLoop** 里面
- 有 **event**，取出来执行。上面说的你设置的 **ajax** 请求的 **callback** 
- 就是加入到当前的 **eventLoop** 末尾。
+你可以看到，我设置了一个永远不会结束循环的 while 循环，在 while 循环
+ 中，每一次迭代我们叫一次 tick，每个 tick ，如果 eventLoop 里面
+ 有 event，取出来执行。上面说的你设置的 ajax 请求的 callback 
+ 就是加入到当前的 eventLoop 末尾。
 
- 所以单独把 **event** 加入到 **eventLoop** 中，**event** 可能并不会马上执行。
- 如果在 **event** 之上还有 20 个 **event**，那么你的 **callback** 将会等到
- 那 20 个  **event** 执行完毕了之后再执行。这就解释了 **setTimeout(...)** 
- 为什么有时候并不是准确的按时间执行，因为在它定义的 **callback** 执行之前，可能
- 还有别的程序正在执行。使用 **setTimeout(...)** 你只能保证它在某个时间点之前不
+ 所以单独把 event 加入到 eventLoop 中，event 可能并不会马上执行。
+ 如果在 event 之上还有 20 个 event，那么你的 callback 将会等到
+ 那 20 个  event 执行完毕了之后再执行。这就解释了 setTimeout(...) 
+ 为什么有时候并不是准确的按时间执行，因为在它定义的 callback 执行之前，可能
+ 还有别的程序正在执行。使用 setTimeout(...) 你只能保证它在某个时间点之前不
  会执行，不能保证在某个时间点一定会执行。
 
- 你编写的 **javaScript** 代码，被分成若干个 **event** 之后加入到 **event loop**
- 中来，按  **event loop** 的顺序执行。
+ 你编写的 javaScript 代码，被分成若干个 event 之后加入到 event loop
+ 中来，按  event loop 的顺序执行。
 
- 注意：我们刚才提到的 **ES6**,它有一个 API **Promise** 提供了更好的 **event loop** 管理
- 能力，它将 **event loop** 的控制权从浏览器爸爸手中抢了回来，这个在第三章再说。
+ 注意：我们刚才提到的 ES6,它有一个 API Promise 提供了更好的 event loop 管理
+ 能力，它将 event loop 的控制权从浏览器爸爸手中抢了回来，这个在第三章再说。
 
  ## Parallel Threading
 
@@ -270,6 +270,73 @@ function bar() {
 ajax( "http://some.url.1", foo );
 ajax( "http://some.url.2", bar );
  ```
+因为 foo 与 bar 谁也不能发端谁的执行，所以最后的结果取决与两个 ajax 谁先获取到数据。
+但是如果提供了多线程的能力，foo 与 bar 一起执行，那么问题就很多了。
 
+下面的代码 Chunk 1 是同步执行，Chunk 2 和 Chunk 3 是异步执行。
 
+Chunk 1:
+``` javaScript
+var a = 1;
+var b = 2;
+```
+Chunk 2 （foo）：
+``` javaScript
+a++;
+b = b * a;
+a = b + 3;
+```
+Chunk 3 （bar）：
+``` javaScript
+b--;
+a = 8 + b;
+b = a * 2;
+```
+因为 foo 与 bar 的发生先后顺序有可能不同，所以可能出现以下两种情况。
 
+情况 1：
+``` javaScript
+var a = 1;
+var b = 2;
+
+// foo()
+a++;
+b = b * a;
+a = b + 3;
+
+// bar()
+b--;
+a = 8 + b;
+b = a * 2;
+
+a; // 11
+b; // 22
+```
+情况 2：
+``` javaScript
+var a = 1;
+var b = 2;
+
+// bar()
+b--;
+a = 8 + b;
+b = a * 2;
+
+// foo()
+a++;
+b = b * a;
+a = b + 3;
+
+a; // 183
+b; // 180
+```
+这两个情况何时出现是不确定的。但是这是在程序上的不确定，而不是在线程上的不确定，比起线程，
+其实还是清晰很多。
+
+以 javaScript 来说， 这种情况叫做竞争条件（race condition）。foo 与 bar 竞争
+谁先触发。根据竞争结果，得出两个不同的值。
+
+注意：上面说的不打扰原则（run-to-completion），在 ES6 的新 API Generators 中是
+不适用的，这个以后再说。
+
+## oncurrency
