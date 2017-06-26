@@ -95,3 +95,64 @@ add( fetchX, fetchY, function(sum){
 
 当然，像上面那样使用基于 callback 的方法处理异步值看起来很粗糙，但是它不妨碍我们理解**像使用同步值一样使用异步值**的优势。
 
+### Promise Value
+关于 Promise 的细节我们会在文章的稍后部分读到，现在有点困惑没关系，先扫一眼下面的代码，看用 Promise 怎么处理上面的 x + y 的栗子。
+``` javaScript
+function add(xPromise,yPromise) {
+	// `Promise.all([ .. ])` takes an array of promises,
+	// and returns a new promise that waits on them
+	// all to finish
+	return Promise.all( [xPromise, yPromise] )
+
+	// when that promise is resolved, let's take the
+	// received `X` and `Y` values and add them together.
+	.then( function(values){
+		// `values` is an array of the messages from the
+		// previously resolved promises
+		return values[0] + values[1];
+	} );
+}
+
+// `fetchX()` and `fetchY()` return promises for
+// their respective values, which may be ready
+// *now* or *later*.
+add( fetchX(), fetchY() )
+
+// we get a promise back for the sum of those
+// two numbers.
+// now we chain-call `then(..)` to wait for the
+// resolution of that returned promise.
+.then( function(sum){
+	console.log( sum ); // that was easier!
+} );
+```
+上面代码中有两个方面需要注意。
+
+第一，我们直接调用 fetchX() 于 fetchY()，将两个函数的返回值（Promise值）直接传入 add(...)。这两个返回值或许是同步，或许是异步，没关系。
+
+第二，add(...) 函数体内返回了 Promise.all([...]) 语句，Promise.all([...]) ，Promise.all([...])执行完成之后会调用其后的 then(...) 语句。当 add(...) 函数执行完毕之后，
+“x” 和 “y” 就已经取到值了，我们可以直接拿来用。可能你也发现了，add(...) 函数隐藏了等待 “x” 和 “y” 的逻辑。
+
+注意：在 add(...) 函数体内，Promise。all([...]) 语句也创造了一个 Promise，这个 Promise 等待 promiseX 和 promiseY 的完成。同样的.then(...) 语句也会创造一个新的 Promise，这个
+Promise 返回 values[0] + values[1]。同理，add(...) 函数体外跟随的 .then 也会返回一个 Promise。关于这部分的细节将在下文中详细讲解。
+
+就像黄焖鸡米饭，一个 Promise 返回的结果也有两种，成功（rejection）或失败（fulfillment）。
+
+在 Promise 中，then(...) 语句有两个函数参数。第一个参数是 Promise 成功时的回调，第二个参数是 Primise 失败时的回调。
+``` javaScript
+add( fetchX(), fetchY() )
+.then(
+	// fullfillment handler
+	function(sum) {
+		console.log( sum );
+	},
+	// rejection handler
+	function(err) {
+		console.error( err ); // bummer!
+	}
+);
+```
+上面的代码中，如果基于某种不明原因获取 X 或 Y 失败，promise（add(...)函数）的状态变为 rejected。.then 语句的第二个参数函数将会被调用。
+
+
+
