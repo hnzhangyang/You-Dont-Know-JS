@@ -154,5 +154,60 @@ add( fetchX(), fetchY() )
 ```
 上面的代码中，如果基于某种不明原因获取 X 或 Y 失败，promise（add(...)函数）的状态变为 rejected。.then 语句的第二个参数函数将会被调用。
 
+**Promise 有自己的内部状态，初始状态:正在运行（pending），以及结束状态：成功（fulfillment）或者失败（rejection）。一旦状态由初始状态变成结束状态（不管是 fulfillment 还是 rejection），其状态都不可再被改变**。
+
+理解这一点对理解 Promise 很重要，因为同样的特性，用 callback 实现起来会显得特别冗长乏味，不是一个明知的选择。
+
+### Completion Event
+跟上面说到的一样， Promise 是一个未来的值。你也将 Promise 理解为一个控制流程的机制，或者是联接多个异步流程的机制。
+
+想象我们调用一个函数 foo(...) 去执行一个任务。但是我们不知道也不关心 foo(...) 函数体的任何细节。它可能很快就会完成，或许得花一段时间才能完成，这些都不重要，我们只需要确定
+的是，当它执行完成的时候能给我们一个信息，好让我们去做接下来该做的事。
+
+在传统 javaScript 之中，如果你需要监听一个事件，一般事采用 event（就像给 dom 节点绑定事件）。之前的 foo(...) 函数也可以想象成是一个事件绑定，它会发出
+通知，也会发布事件。
+
+思考下面代码。
+``` javaScript
+foo(x) {
+	// start doing something that could take a while
+}
+
+foo( 42 )
+
+on (foo "completion") {
+	// now we can do the next step!
+}
+
+on (foo "error") {
+	// oops, something went wrong in `foo(..)`
+}
+```
+我们调用 foo(...) 并且设定了两个事件监听，一个是监听 "completion" 事件，另一个是监听 "error" 事件。这两个事件可以同时被调用。
+
+接下来把上面代码再优化下。
+
+``` javaScript
+function foo(x) {
+	// start doing something that could take a while
+
+	// make a `listener` event notification
+	// capability to return
+
+	return listener;
+}
+
+var evt = foo( 42 );
+
+evt.on( "completion", function(){
+	// now we can do the next step!
+} );
+
+evt.on( "failure", function(err){
+	// oops, something went wrong in `foo(..)`
+} );
+```
+
+
 
 
