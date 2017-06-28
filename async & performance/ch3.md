@@ -312,7 +312,17 @@ p.then( baz, oopsBaz );
 
 不论什么情况，foo(...) 返回的 Promise 都是用来处理 foo(...) 运行完之后的逻辑。
 
-此外，一旦 Promise 的状态被决定，可以按需求多次调用 Promise 实例的 then 方法，then 方法的状态是不变的。
+此外，一旦 Promise 的状态被决定，可以按需求多次调用 Promise 实例的 then 方法，Promise 方法的状态是不变的。
 
 ### Thenable Duck Typing
+有一点需要注意的是，如何区分一个对象是否是 Promise 对象？还是这个对象只是一个跟 Promise 对象行为很相似的值？
 
+我们是通过构造函数 Promise 来创建 Promise 实例的（new Promise()），或许你的第一反应就是通过 p instanceof Promise 来判断一个对象是不是 Promise 对象。
+
+想法很好，但是（总是有但是），有特殊情况，我们知道**任何构造函数都是当前框架下的 window 对象的属性**。这也就是说如果当一个页面里面有两个框架（比如用了 iframe），那么两个页面的 widnow.Promise
+其实是不同的，这也就是说如果你的 promise 对象是从父框架传过来的，因为两个框架的 Promise 不同，所以此时 p instanceof Promise 返回的结果也是 false，即使 p
+的确是一个 Promise 实例。
+
+此外，因为支持 Promise 的浏览器还不是很全，在 Promise 普及过程中，一些第三方框架难免要自己写一个类 Promise 的对象，以用在一些不兼容 Promise 的浏览器上。
+
+讨论一个对象究竟是不是 Promise 对象不是没事找事，实际上来说，还是比较重要， 
