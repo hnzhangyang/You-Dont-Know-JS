@@ -161,11 +161,9 @@ add( fetchX(), fetchY() )
 ### Completion Event
 跟上面说到的一样， Promise 是一个关于未来的值。你也将 Promise 理解为一个控制多个异步的流程控制器。
 
-想象我们调用一个函数 foo(...) 去执行一个任务。我们不需要知道也不需要关心 foo(...) 函数体的任何细节。它可能是同步也可能是异步，这些都不重要，我们只需要确定
-的是，当它执行完成的时候能给我们一个信息，好让我们去做接下来该做的事。
+想象我们调用一个函数 foo(...) 去执行一个任务。我们不需要知道也不需要关心 foo(...) 函数体的任何细节。它可能是同步也可能是异步，这些都不重要，我们只需要确定的是，当它执行完成的时候能给我们一个信息，好让我们去做接下来该做的事。
 
-在传统 javaScript 中，如果你需要去监听一个事件，最容易联想到的就是事件绑定机制（比如给 dom 节点绑定 click 事件）。那么我们监听一个事件也可以看作是一个事件
-机制，只不过这个事件是由 foo(...) 函数发出，而不是用户点击了 dom 节点。
+在传统 javaScript 中，如果你需要去监听一个事件，最容易联想到的就是事件绑定机制（比如给 dom 节点绑定 click 事件）。那么我们监听一个事件也可以看作是一个事件机制，只不过这个事件是由 foo(...) 函数发出，而不是用户点击了 dom 节点。
 
 思考下面代码。
 ``` javaScript
@@ -183,8 +181,7 @@ on (foo "error") {
 	// oops, something went wrong in `foo(..)`
 }
 ```
-我们调用 foo(...) 函数，并且设定了两个事件监听，一个是监听 "completion" 事件，另一个是监听 "error" 事件。调用哪个事件取决于 foo(...) 的执行结果。事实上，foo(...) 函数
-不需要关心是否在其之后订阅了事件，事件的订阅与 foo(...) 函数的执行是分离开来的。
+我们调用 foo(...) 函数，并且设定了两个事件监听，一个是监听 "completion" 事件，另一个是监听 "error" 事件。调用哪个事件取决于 foo(...) 的执行结果。事实上，foo(...) 函数不需要关心是否在其之后订阅了事件，事件的订阅与 foo(...) 函数的执行是分离开来的。
 
 当然，这种语法是不是看起来很怪异，你没写过这样的语法，JS 引擎也没有这种语法，这是原作者虚构出来的语法 : )
 
@@ -210,7 +207,112 @@ evt.on( "failure", function(err){
 	// oops, something went wrong in `foo(..)`
 } );
 ```
-经过改造后，foo(...) 函数返回了一个能被订阅事件的对象，
+经过改造后，foo(...) 函数返回了一个有能力接收订阅事件的对象，这个对象接收了两个事件，“completion”，“failure”。
 
+跟 callback 的写法有点不同，foo(...) 函数不需要我们将 callback 作为参数传递给它，取而代之的是。它返回了一个可以接受 callback 函数的对象。
 
+在上一章提到过说使用 callback 就意味这代码控制权的转移，而现在我们没有使用 callbcak  而是使用可接受监听事件的对象，这样一来控制权还是在我们手上（表达的可能不大清楚，各位仔细理解下）。
+
+我们的代码现在可以监听 foo(...) 函数的执行，当 foo(...) 执行完成的时候我们可以立即调用之前注册的监听的回调函数。
+
+``` javaScript
+var evt = foo( 42 );
+
+// let `bar(..)` listen to `foo(..)`'s completion
+bar( evt );
+
+// also, let `baz(..)` listen to `foo(..)`'s completion
+baz( evt );
+```
+这样做的好处就是 bar(...) 与 baz(...) 不需要关注 foo(...) 是怎样执行，foo(...) 也不需要关注是不是有 bar(...)，baz(...) 监听他的执行。
+
+evt 对象就像一个中立的第三方控制器一样联接着我们的代码。
+
+### Promise "Events"
+
+可能你也注意到了，evt 对象监听事件的能力有点像 Promise。关于这部分的细节将在下文中详细讲解。
+
+在 Promise 中，上面的代码要改写成 foo(...) 函数返回一个 Promise 实例，然后将这个实例当作参数传递给 bar(...) 和 baz(...)。
+
+注意：Promise 监听事件和上面所说的 event 监听事件还是有区别的（虽然他们的行为看起来很像），Promise 不会监听 “completion” 和 “error” 事件，取而代之的是 Promise 使用 then(...)
+去注册一个 “then” 事件。更准确的说，即使没有明确的代码表示，但是其实 then(...) 是注册了两个事件，一个是 “fulfillment”，另一个是 “rejection”。
+
+考虑如下代码：
+``` javaScript
+function foo(x) {
+	// start doing something that could take a while
+
+	// construct and return a promise
+	return new Promise( function(resolve,reject){
+		// eventually, call `resolve(..)` or `reject(..)`,
+		// which are the resolution callbacks for
+		// the promise.
+	} );
+}
+
+var p = foo( 42 );
+
+bar( p );
+
+baz( p );
+```
+注意：new Promise( function(..){ .. } ) 是一个调用一个构造函数，这个构造函数接受两个参数，一个是 “resolve”，还有一个是 “reject”。这两个参数是用来改变 Promise
+的状态的，执行 resolve(...) 将 Promise 的状态改变为 “fulfillment”，执行 reject(...) 将 Promise 的状态改变为 “rejection”。
+
+在 bar(...) 和 baz(...) 内部是这样的：
+``` javaScript
+function bar(fooPromise) {
+	// listen for `foo(..)` to complete
+	fooPromise.then(
+		function(){
+			// `foo(..)` has now finished, so
+			// do `bar(..)`'s task
+		},
+		function(){
+			// oops, something went wrong in `foo(..)`
+		}
+	);
+}
+
+// ditto for `baz(..)`
+```
+Promise 可以像上面这样，仅仅作为联接两段代码的联接器。
+
+思考下面代码：
+``` javaScript
+function bar() {
+	// `foo(..)` has definitely finished, so
+	// do `bar(..)`'s task
+}
+
+function oopsBar() {
+	// oops, something went wrong in `foo(..)`,
+	// so `bar(..)` didn't run
+}
+
+// ditto for `baz()` and `oopsBaz()`
+
+var p = foo( 42 );
+
+p.then( bar, oopsBar );
+
+p.then( baz, oopsBaz );
+```
+注意：如果你仔细阅读了先前的栗子的话，上面代码的最后两行，你或许会写成 p.then( .. ).then( .. )。这个是需要注意的地方，p.then(..); p.then(..) 与 p.then( .. ).then( .. )
+有很大的不同，这个会在稍后解释。
+
+相对于将 Promise 当作参数传递给 bar(...)，baz(...)，我们现在使用 Promise 来控制 bar(...) 与 baz(...) 的触发，这两个方式有一个区别就是，当 Promise 出现问题时，后者可以更方便地做相应处理。
+
+在上面的第一段代码中，不管 foo(...) 函数运行完成还是运行失败， bar(...) 都会被触发，如果需要处理 foo(...) 运行失败的逻辑，需要将代码卸载 bar(...) 函数内部。baz(...)
+同理。
+
+第二个栗子，只有当 foo(...) 成功运行时，才会触发 bar(...)，如果 foo(...) 运行出现错误，会触发 oopsBar(...)，同理 baz(...)。
+
+上面两种方式都是对的，具体采用哪种方式需要参考那时的代码环境决定。
+
+不论什么情况，foo(...) 返回的 Promise 都是用来处理 foo(...) 运行完之后的逻辑。
+
+此外，一旦 Promise 的状态被决定，可以按需求多次调用 Promise 实例的 then 方法，then 方法的状态是不变的。
+
+### Thenable Duck Typing
 
