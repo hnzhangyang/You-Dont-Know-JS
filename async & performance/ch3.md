@@ -325,4 +325,59 @@ p.then( baz, oopsBaz );
 
 此外，因为支持 Promise 的浏览器还不是很全，在 Promise 普及过程中，一些第三方框架难免要自己写一个类 Promise 的对象，以用在一些不兼容 Promise 的浏览器上。
 
-讨论一个对象究竟是不是 Promise 对象不是没事找事，实际上来说，还是比较重要， 
+在文章的稍后部分我们详细解释 Promise 运行机制的时候，你就会发现鉴别 类Promise 对象是很重要的，现在先不管细节，只需要知道这很重要...
+
+一般而言，我们鉴别 类Promise 对象的方法就是看一个对象是否拥有 then 方法，如果有，那么它就是一个 类Promise 对象。这种检测的方法称为 “duck typing”，鸭子检测...
+如果一个动物长的像鸭子，并且叫声也像鸭子，那么，它就是鸭子。所以我们的鉴别方法可以写成下面这样：
+``` javaScript
+if (
+	p !== null &&
+	(
+		typeof p === "object" ||
+		typeof p === "function"
+	) &&
+	typeof p.then === "function"
+) {
+	// assume it's a thenable!
+}
+else {
+	// not a thenable
+}
+```
+请原谅这么粗糙的检测方法，实际上，它不只粗糙，还有很多问题。
+
+显而易见，像上面那样的检测方法会把一些不是 类Promise 的对象当成是 类Promise 对象。只要这个对象拥有 then 方法。
+
+比如说下面：
+``` javaScript
+var o = { then: function(){} };
+
+// make `v` be `[[Prototype]]`-linked to `o`
+var v = Object.create( o );
+
+v.someStuff = "cool";
+v.otherStuff = "not so cool";
+
+v.hasOwnProperty( "then" );		// false
+```
+v 肯定不是 类Promise 对象吧？就是因为 v 继承了 o 对象的原型链，所以他也具有 then 方法， 也被当成了 Promise 对象。
+
+有时候你甚至不会察觉到某个对象会被当成是 类Promise 对象。
+
+``` javaScript
+Object.prototype.then = function(){};
+Array.prototype.then = function(){};
+
+var v1 = { hello: "world" };
+var v2 = [ "Hello", "World" ];
+```
+v1 和 v2 都被当成了 类Promise 对象。甚至可以说所有的对象和数组都被当成了 类Promise 对象。像这样在 prototype 上面定义 then 方法，不管你是有意还是无意，都会对我们的检测造成干扰。
+
+是不是觉得很不可思议？（其实我一点不觉得）
+
+要注意的是远在 ES6 出来之前，就有很多第三方框架使用了 类Promise 的方法，ES6 出来之后，其中有一个部分将原来的方法改写以避免冲突，有一些则不。
+
+宗上所述，使用像上面那种方法检测 类Promise 是不可靠的。
+
+### Promise Trust
+
