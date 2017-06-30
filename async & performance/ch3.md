@@ -379,5 +379,18 @@ v1 和 v2 都被当成了 类Promise 对象。甚至可以说所有的对象和�
 
 宗上所述，使用像上面那种方法检测 类Promise 是不可靠的。
 
-### Promise Trust
+## Promise Trust
+经过上面几个栗子，我们大概了解了 Promise 的运作方式，但是如果仅仅是了解这些，就错失了 Promise 最重要的部分。
+
+还记的我们在第二章时运用第三方工具使用 callback 编写异步代码可能会出现的几个问题吗？
+- 调用 callback 太早
+- 调用 callback 太晚，或者干脆没有调用
+- 重复调用 callback
+- 调用 callback 时传入了错误的参数
+- 未知的错误发生
+
+Promise 可以很好的解决这几个问题，看我们是怎么做的。
+
+### Calling Too Early
+
 
