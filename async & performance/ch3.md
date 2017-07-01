@@ -392,5 +392,153 @@ v1 和 v2 都被当成了 类Promise 对象。甚至可以说所有的对象和�
 Promise 可以很好的解决这几个问题，看我们是怎么做的。
 
 ### Calling Too Early
+造成这个问题的原因可以归根与在程序逻辑中有资源竞争，有时候我们需要异步加载两个资源，在两个资源都加载完成后再调用回调，这时如果不设置条件处理的话，可能在第一个资源加载的时候就启用了回调。
 
+Promise 天生可以解决这个问题，因为 Promise 的代码都是异步代码，回调函数会放到下一个事件流执行，就像我们使用 setTimeout(fn,0) 一样。
 
+### Calling Too Late
+跟上面一样，因为 Promise 的回调函数都是异步执行，所以不会出现像同步代码一样链式回调阻塞代码，比如说下面这个栗子。
+``` javaScript
+p.then( function(){
+	p.then( function(){
+		console.log( "C" );
+	} );
+	console.log( "A" );
+} );
+p.then( function(){
+	console.log( "B" );
+} );
+// A B C
+```
+输出的结果是 A B C ，C 不会打断 B 的执行。
+
+### Promise Scheduling Quirks
+有一点值得注意的是，当多个 Promise 共存时，他们的 callback 的执行顺序可能不时你预料的那样。
+
+比如说有两个 Promise，p1 和 p2，都已经执行完成。如果按 p1.then(...) p2.then(...) 的方式设置回调，你是不是想像执行也应该是 p1 的回调函数先执行。其实不一定，看下面代码。
+``` javaScript
+var p3 = new Promise( function(resolve,reject){
+	resolve( "B" );
+} );
+
+var p1 = new Promise( function(resolve,reject){
+	resolve( p3 );
+} );
+
+var p2 = new Promise( function(resolve,reject){
+	resolve( "A" );
+} );
+
+p1.then( function(v){
+	console.log( v );
+} );
+
+p2.then( function(v){
+	console.log( v );
+} );
+
+// A B  <-- not  B A  as you might expect
+```
+关于这方面，在下文会有详细解释，但是你应该也注意到了，在 p1 中执行的 resove() 方法时，并没有传入一个确定的值，取而代之传入的是另一个 Promise p3。p3
+执行完成时才返回值 “B”。在这种情况下 p1 还需等待 p3 执行完成，才能调用回调函数，所以 p2 的回调函数会在 p1 之前调用。
+
+在实际编码中，为了避免此类问题，最好不要将一个 Promise  当作参数传入另一个 Promise 中。
+
+### Never Calling the Callback
+这是一个非常普遍的情况。
+
+首先需要说明的是，没有任何代码可以干扰当 Promise 状态改变时，执行它的回调函数，就算是在执行过程中出现程序错误，Promise 也可以执行状态变为 “rejection” 时的回调。
+
+然而你可能会问，如果 Promise 一直执行下去，一直没有改变状态，那么 callback 不就一直不会调用了吗？要解决这个问题很简单，只需要借助 Promise.race 设定一个超时条件，
+当 Promise 运行时间超过我们预设的值时，自动调用 “rejection” 即可。
+
+``` javaScript
+// a utility for timing out a Promise
+function timeoutPromise(delay) {
+	return new Promise( function(resolve,reject){
+		setTimeout( function(){
+			reject( "Timeout!" );
+		}, delay );
+	} );
+}
+
+// setup a timeout for `foo()`
+Promise.race( [
+	foo(),					// attempt `foo()`
+	timeoutPromise( 3000 )	// give it 3 seconds
+] )
+.then(
+	function(){
+		// `foo(..)` fulfilled in time!
+	},
+	function(err){
+		// either `foo()` rejected, or it just
+		// didn't finish in time, so inspect
+		// `err` to know which
+	}
+);
+```
+### Calling Too Few or Too Many Times
+
+一般而言，callback 只需要执行一次，那么 “Too Few” 就代表 callback 一次也没有执行，这种情况上面我们已经讨论过了。
+
+“Too many” 也很好理解， callback 执行了两次以上，这通常会导致错误（比如重复提交订单）。还记得上面说到过， Promise 状态一旦改变，不再可更改。这也就是说，Promise
+的回调函数只会执行一次，如果你试图多次改变 Promise 的状态（resolve(...) 或 reject(...)），只有第一次改变状态时有效，后面的都会被忽略。
+
+当然，如果你注册多个回调（比如 p.then(...);p.then(...)），Promise 在状态改变时也会执行你所有绑定的回调，它只是保证不会重复的执行你绑定的回调函数。
+
+### Failing to Pass Along Any Parameters/Environment
+在 Promise 内部执行 resolve 或者 reject 方法时，只可以带一个参数，供相应的回调函数使用，剩下的参数将会被忽略。（Promise 就是这么定义的我也没办法），不过作者给出了两个解决方案。
+
+第一你可以将所有的参数包裹在一个变量或者数组里面，这很好理解。
+
+其二就是闭包机制同样对 Promise 适用，在你可以使用闭包来解决此类问题。
+
+### Swallowing Any Errors/Exceptions
+在文章上面也有提到过，如果你在 Promise 中调用了 reject(...) ，Promise 的状态将会变为 “rejection”，相应的回调函数也会调用，而在使用 reject(...) 时传入的参数也会传如回调函数中。
+
+并且如果 Promise 在执行时如果遇到错误（比如 TypeError 或者 ReferenceError），也会强制将 Promise 转为 “rejection” 状态，例如：
+``` javaScript
+var p = new Promise( function(resolve,reject){
+	foo.bar();	// `foo` is not defined, so error!
+	resolve( 42 );	// never gets here :(
+} );
+
+p.then(
+	function fulfilled(){
+		// never gets here :(
+	},
+	function rejected(err){
+		// `err` will be a `TypeError` exception object
+		// from the `foo.bar()` line.
+	}
+);
+```
+foo.bar() 导致了 Promise 状态变为 “rejection”。
+
+但是如果 Promise 本体执行成功，在回调函数中出现的错误要怎么办呢？
+``` javaScript
+var p = new Promise( function(resolve,reject){
+	resolve( 42 );
+} );
+
+p.then(
+	function fulfilled(msg){
+		foo.bar();
+		console.log( msg );	// never gets here :(
+	},
+	function rejected(err){
+		// never gets here either :(
+	}
+);
+```
+在 then() 中注册的回调函数中出现错误，我们就捕获不到了吗？答案当然时否定的，还记得上面说到过 then(...) 方法也会返回一个新的 Promise 吗？
+
+你可能也想到了，在 then() 方法中出现的错误会使返回的 Promise 状态变为 “rejection”，我们可以在新的 Promise 上面注册回调来捕获错误。
+
+### Trustable Promise?
+关于 Promise 还有一点需要了解。
+
+上文一直拿 Promise 与 callback 进行对比，但并不是说使用 Promise 就不要使用 callback 了，而是说将 callback 放入 Promise 中，而不是放入 foo 函数中。
+
+将 callback 放入 Promise 中比放入 foo 中更好，
