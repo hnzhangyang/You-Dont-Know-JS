@@ -541,4 +541,170 @@ p.then(
 
 上文一直拿 Promise 与 callback 进行对比，但并不是说使用 Promise 就不要使用 callback 了，而是说将 callback 放入 Promise 中，而不是放入 foo 函数中。
 
-将 callback 放入 Promise 中比放入 foo 中更好，
+但是为什么我们说使用 callback 比单独使用 callback 更可靠？我们怎么判断通过某个方法返回过来的值是 Promise？
+
+解决这个问题我们需要使用到 Promise 的原生方法 Promise.resolve()。
+
+因为如果使用 Promise.resolve() 的话，即使你传递一个既不是 Promise 也不是 tenable（类Promise）的直接值，你也会得到新的且状态为 “fulfilled”
+的 Promise。换句话说，下面两个 Promise 的效果是一样的：
+``` javaScript
+var p1 = new Promise( function(resolve,reject){
+	resolve( 42 );
+} );
+
+var p2 = Promise.resolve( 42 );
+```
+如果你传递一个 Promise 给 Promise.resolve(),那么 Promise.resove() 会将传递的这个 Promise 原封不动的返回:
+``` javaScript
+var p1 = Promise.resolve( 42 );
+
+var p2 = Promise.resolve( p1 );
+
+p1 === p2; // true
+```
+又或者，你仅仅是将一个 thenable 对象传递给 Promise.resolve()。它将会调用 thenable 对象的 then 方法求值。
+
+回顾一下下上面我们所讲到的 thenable 对象。
+``` javaScript
+var p = {
+	then: function(cb) {
+		cb( 42 );
+	}
+};
+
+// this works OK, but only by good fortune
+p
+.then(
+	function fulfilled(val){
+		console.log( val ); // 42
+	},
+	function rejected(err){
+		// never gets here
+	}
+);
+···
+P 是一个 thenable 对象，但是不是真正的 Promise 对象。但是似乎还有点不全，或者我们可以这样写：
+``` javaScript
+var p = {
+	then: function(cb,errcb) {
+		cb( 42 );
+		errcb( "evil laugh" );
+	}
+};
+
+p
+.then(
+	function fulfilled(val){
+		console.log( val ); // 42
+	},
+	function rejected(err){
+		// oops, shouldn't have run
+		console.log( err ); // evil laugh
+	}
+);
+```
+P 对象或许是一个 thenable 对象，但是却没有 Promose 的表现，它会同时调用两个回调函数。
+
+想象下我们将 P 对象传递给 Promise.resolve() 会发生什么？
+``` javaScript
+Promise.resolve( p )
+.then(
+	function fulfilled(val){
+		console.log( val ); // 42
+	},
+	function rejected(err){
+		// never gets here
+	}
+);
+```
+上面提到过如果将一个 thenable 对像传递给 Promise.resolve(),它将会调用这个 thenable 对象的 then 方法，并且返回一个 Promise。如果传递一个 Promise
+Promise.resolve() 将会将这个 Primise 对象返回。
+
+还记得上面的 foo() 方法吗？我们不确定 foo() 方法是不是能返回一个可靠的 thenable 对象，但是至少是一个 thenable 对象，所以我们可以使用 Promise.reslove()
+方法将其转化成一个真正可信赖的 Primise 对象。
+
+``` javaScript
+// don't just do this:
+foo( 42 )
+.then( function(v){
+	console.log( v );
+} );
+
+// instead, do this:
+Promise.resolve( foo( 42 ) )
+.then( function(v){
+	console.log( v );
+} );
+```
+
+### Trust Built
+在前面的栗子中我们讨论了使用 Promise 编写一个健壮的可维护的程序是非常可靠的。尽管我们使用不可靠的 callback 构建程序已经将近二十年了。
+
+又或许你也早就发现了 callback 的种种不足...
+
+Promise 提高了使用 callback 的可靠性，也不会将代码控制权转移到第三方插件，借此我们可以编写更清晰的更可靠的异步代码。
+
+## Chain Flow
+对于 Promise 的链式调用在上文已提及多次，这代表着我们可以通过联接多个 Promise 来编写链式的异步操作。
+
+关于 Promise 的链式调用，主要由下面两点提供：
+- 每次你调用 then 方法，它都会返回另一个 Promise 供你调用。
+- 不管你在 then 方法里面 return 什么值，都会将返回的 Promise 的状态设置为 “fulfilled”
+
+解释下第一点，主要是它给我们提供的链式调用功能：
+``` javaScript
+var p = Promise.resolve( 21 );
+
+var p2 = p.then( function(v){
+	console.log( v );	// 21
+
+	// fulfill `p2` with value `42`
+	return v * 2;
+} );
+
+// chain off `p2`
+p2.then( function(v){
+	console.log( v );	// 42
+} );
+```
+通过 return v*2，p2（由第一个 then 方法返回新 Promise）的状态被设定为 “fulfilled”，并且值 42 将会被 p2 的 then 方法接收，当然 p2.then() 也会返回另一个 Promise
+，它能被 p3 接收（假如你想的话）。
+
+或许你觉得 p2，p3 这些中间值不太好看，你也可以直接这么写：
+``` javaScript
+var p = Promise.resolve( 21 );
+
+p
+.then( function(v){
+	console.log( v );	// 21
+
+	// fulfill the chained promise with value `42`
+	return v * 2;
+} )
+// here's the chained promise
+.then( function(v){
+	console.log( v );	// 42
+} );
+```
+第一个 then 是链式调用的第一步，第二个 then 是链式调用的第二步，不管多少步，只要你愿意，都是可以的。
+
+但是我们上面使用的都是直接值，第一步执行完毕后马上执行第二步，第二步执行完毕后马上执行第三步等等，如果我们像链式调用异步代码呢？
+
+上面的问题的诀窍在于使用 Promise.resolve() 方法。
+
+``` javaScript
+var p = Promise.resolve( 21 );
+
+p.then( function(v){
+	console.log( v );	// 21
+
+	// create a promise and return it
+	return new Promise( function(resolve,reject){
+		// fulfill with value `42`
+		resolve( v * 2 );
+	} );
+} )
+.then( function(v){
+	console.log( v );	// 42
+} );
+```
