@@ -582,7 +582,7 @@ p
 		// never gets here
 	}
 );
-···
+```
 P 是一个 thenable 对象，但是不是真正的 Promise 对象。但是似乎还有点不全，或者我们可以这样写：
 ``` javaScript
 var p = {
@@ -708,3 +708,56 @@ p.then( function(v){
 	console.log( v );	// 42
 } );
 ```
+即使我们将 42 放进一个 Promise 中再返回该 Promise，链式调用的第二步也能接收到这个值，同理，我们可以将异步代码写进 Promise 中再返回。
+``` javaScript
+var p = Promise.resolve( 21 );
+
+p.then( function(v){
+	console.log( v );	// 21
+
+	// create a promise to return
+	return new Promise( function(resolve,reject){
+		// introduce asynchrony!
+		setTimeout( function(){
+			// fulfill with value `42`
+			resolve( v * 2 );
+		}, 100 );
+	} );
+} )
+.then( function(v){
+	// runs after the 100ms delay in the previous step
+	console.log( v );	// 42
+} );
+```
+按照上面的代码，我们可以在 Promise 中包含任意数量的异步代码，它都是有效的。
+
+当然，在 resolve() 中传入的参数是可选的，如果不传，默认是 undefined。传不传参数都不会影响到链式调用。
+
+为了进一步的说明，我们现在编写一个具有延迟功能的 Promise 工具。
+``` javaScript
+function delay(time) {
+	return new Promise( function(resolve,reject){
+		setTimeout( resolve, time );
+	} );
+}
+
+delay( 100 ) // step 1
+.then( function STEP2(){
+	console.log( "step 2 (after 100ms)" );
+	return delay( 200 );
+} )
+.then( function STEP3(){
+	console.log( "step 3 (after another 200ms)" );
+} )
+.then( function STEP4(){
+	console.log( "step 4 (next Job)" );
+	return delay( 50 );
+} )
+.then( function STEP5(){
+	console.log( "step 5 (after another 50ms)" );
+} )
+...
+```
+调用 delay(200) 将会生成一个 200ms 后才会改变状态的 Promise，就像我们在第一个 then 中调用 delay(200)，第二个 then 将会等待 200ms 才会执行。
+
+注意：
