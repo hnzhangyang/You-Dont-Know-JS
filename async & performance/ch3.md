@@ -1,4 +1,4 @@
-#You Don't Know JS: Async & Performance
+# You Don't Know JS: Async & Performance
 ## Chapter 3: Promises
 在第二章中，我们讨论了使用 callback 作为异步回调的两个主要缺陷。
 
@@ -760,4 +760,116 @@ delay( 100 ) // step 1
 ```
 调用 delay(200) 将会生成一个 200ms 后才会改变状态的 Promise，就像我们在第一个 then 中调用 delay(200)，第二个 then 将会等待 200ms 才会执行。
 
-注意：
+注意：step 2 其实返回了两个 Promise 一个是延迟 200ms 的 Promise ，另一个是 .then 方法返回的 Promise，js 内部运行机制自动帮你将两个 Promise 结合起来了，这里你可以简单的看成只返回了一个延迟 200ms
+的 Promise。 
+
+老实说，如果 delay() 函数仅仅是延迟，不传递任何信息的话，并不是一个非常有用的方法，这里我们看一下另一个实践。
+
+``` javaScript
+
+// Promise-aware ajax
+function request(url) {
+	return new Promise( function(resolve,reject){
+		// the `ajax(..)` callback should be our
+		// promise's `resolve(..)` function
+		ajax( url, resolve );
+	} );
+}
+```
+
+我们用 Promise 来表示 ajax 是否完成。
+
+``` javaScript
+request( "http://some.url.1/" )
+.then( function(response1){
+	return request( "http://some.url.2/?v=" + response1 );
+} )
+.then( function(response2){
+	console.log( response2 );
+} );
+```
+注意：开发者经常遇到的一种状况就是，想用 Promise 的思维方式去处理一些异步问题，但是手头上的插件或库并不支持 Promise，而 ES6 的 Promise
+机制似乎也没提供一个很好的解决方案，这点我们稍后再讨论。
+
+以上代码我们调用 request() 方法，返回了一个 Promise，它使我们的 ajax 请求完成时去调用 then() 方法。
+
+然后同理，利用 response1 的数据，我们构建第二个 request() 方法的 url 地址，等待第二个 ajax 请求完成后，调用第二个 then() 方法，打印 response2。
+
+Promise 的链式调用并不单单时处理异步问题，我们还可以用它来传递信息。
+
+如果再链式调用中，有哪一步出现了错误，我们也可以捕获到那个错误，然后通过一些处理使程序继续“正常”进行。
+``` javaScript
+// step 1:
+request( "http://some.url.1/" )
+
+// step 2:
+.then( function(response1){
+	foo.bar(); // undefined, error!
+
+	// never gets here
+	return request( "http://some.url.2/?v=" + response1 );
+} )
+
+// step 3:
+.then(
+	function fulfilled(response2){
+		// never gets here
+	},
+	// rejection handler to catch the error
+	function rejected(err){
+		console.log( err );	// `TypeError` from `foo.bar()` error
+		return 42;
+	}
+)
+
+// step 4:
+.then( function(msg){
+	console.log( msg );		// 42
+} );
+```
+当 step 2 出现错误的时候， step 3 的 rejection 回调函数能够捕获这个错误，这个回调函数返回 42，使我们的程序继续运行下去，最终成功运行。
+
+注意：像之前讨论的一样，我们在 fulfillment 回调函数中使用 delay() 方法可以延迟 Promise 的进行，这个方法同样在 rejection 回调函数中适用，不过如果在这两个回调函数中有出现错误，会马上返回一个状态为 rejection
+的 Promise ，被下一步的 then 捕获，这样就不会有延迟效果了。
+
+then() 方法接收两个回调函数，一个成功回调，一个失败回调，如果你只传递成功回调，会有一个默认的失败回调，就像下面这样：
+``` javaScript
+var p = new Promise( function(resolve,reject){
+	reject( "Oops" );
+} );
+
+var p2 = p.then(
+	function fulfilled(){
+		// never gets here
+	}
+	// assumed rejection handler, if omitted or
+	// any other non-function value passed
+	// function(err) {
+	//     throw err;
+	// }
+);
+```
+像你看到的一样，默认的失败回调仅仅是抛出错误，它强制 p2 的状态变为 “rejection”。然后等待接下来的链式调用中捕获这个错误。
+
+注意：我们在文章的稍后部分继续讨论错误处理问题。
+
+如果 then() 方法中只传失败回调，没传成功回调，默认的成功回调是这样的：
+
+``` javaScript
+var p = Promise.resolve( 42 );
+
+p.then(
+	// assumed fulfillment handler, if omitted or
+	// any other non-function value passed
+	// function(v) {
+	//     return v;
+	// }
+	null,
+	function rejected(err){
+		// never gets here
+	}
+);
+```
+可以看出，默认的成功回调仅仅是将接收到的值返回给下一步。
+
+注意：then(null,function(err){ .. }) 方法可以看成是错误检测，因为它在成功时不会处理任何东西，只在失败时抛出错误，还有一个 API 也有相同的作用 catch(function(err){ .. })，我们将在下一章讨论这个问题。
