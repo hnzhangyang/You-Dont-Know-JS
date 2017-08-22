@@ -78,3 +78,44 @@ ok,目前为止，你应该对于上面的代码有很多不理解的地方，�
 显而易见吗，*foo 函数执行了，但是并不是一下子就执行完毕，而是中间有个暂停执行的步骤（由 yield 关键字控制）。
 
 generator 是一种特殊的函数，他可以在运行中多次暂停执行，且可以永远暂停下去（只要你想的话），这是一个非常有用的功能，我们将会在下文中详细了解 Generator，它将成为一种非常有效的构建异步模块的手段。
+
+### Input and Output
+刚刚说到 generator 函数是一种特殊的函数类型，但毕竟也是函数，它同样的也接受参数（input）和返回值（output）。
+
+``` javaScript
+function *foo(x,y) {
+	return x * y;
+}
+
+var it = foo( 6, 7 );
+
+var res = it.next();
+
+res.value;	// 42
+```
+给 foo 传入 6, 7，并且 foo 返回 42。
+
+但是调用 foo 的方式和普通函数有所不同，当运行 foo( 6, 7 ) 的时候，实际函数并没有运行，当 it.next() 执行的时候，foo 函数才开始执行，运行到 yield 或函数末尾。
+
+next() 语句返回一个对象，它包含 value 属性，反应当前状态的结果，函数当前状态由函数内部决定，比如 yield 会暂停函数的运行。
+
+### Iteration Messaging
+generator 不仅仅是接受参数返回值，它还可以通过 yield 和 next 完成更有用更复杂的操作。
+
+考虑如下代码。
+
+``` javaScript
+function *foo(x) {
+	var y = x * (yield);
+	return y;
+}
+
+var it = foo( 6 );
+
+// start `foo(..)`
+it.next();
+
+var res = it.next( 7 );
+
+res.value;  // 42
+```
