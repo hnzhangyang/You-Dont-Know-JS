@@ -120,5 +120,13 @@ var res = it.next( 7 );
 res.value;  // 42
 ```
 
-首先，我们将 6 传入 foo，然后调用 it.next()，开始 foo 的运行。
+首先，运行 var it = foo( 6 )，此时函数并不会运行，调用 it.next()之后，才开始 foo 的运行。
+
+在 foo 函数内部，运行 var y = x * (yield) 语句的时候，遇到 yield 使 foo 函数暂停运行，它期待一个返回值给 yield 关键字，然后才能继续运行函数。
+
+当我们运行 it.next( 7 ) 的时候，7 就作为 yield 的返回值，让 foo 继续运行。
+
+现在 var y = x * (yield) 变成了 var y = 6 * 7，所以后面的语句 返回了 42。
+
+
 
