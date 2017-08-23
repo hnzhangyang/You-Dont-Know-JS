@@ -119,3 +119,6 @@ var res = it.next( 7 );
 
 res.value;  // 42
 ```
+
+首先，我们将 6 传入 foo，然后调用 it.next()，开始 foo 的运行。
+
