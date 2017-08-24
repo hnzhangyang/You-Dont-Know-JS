@@ -135,3 +135,5 @@ res.value;  // 42
 因为 第一个 next 方法总是作为启动 generator 函数，后面的第二个 next 才对应函数体内的第一个 yield，以此类推。
 
 
+
+
