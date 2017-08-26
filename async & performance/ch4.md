@@ -132,7 +132,7 @@ res.value;  // 42
 
 或者说 yield 总是比 next 少一个，不是一个暂停一个执行吗？应该是相等才对，为什么会这样？
 
-因为 第一个 next 方法总是作为启动 generator 函数，后面的第二个 next 才对应函数体内的第一个 yield，以此类推。
+因为 第一个 next 方法总是作为启动 generator 函数，后面的第二个 next 才对应函数体内的第一个 yield，以此类推 。
 
 
 
