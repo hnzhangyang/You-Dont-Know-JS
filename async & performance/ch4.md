@@ -132,7 +132,27 @@ res.value;  // 42
 
 或者说 yield 总是比 next 少一个，不是一个暂停一个执行吗？应该是相等才对，为什么会这样？
 
-因为 第一个 next 方法总是作为启动 generator 函数，后面的第二个 next 才对应函数体内的第一个 yield，以此类推 。
+因为 第一个 next 方法总是作为启动 generator 函数，后面的第二个 next 才对应函数体内的第一个 yield，以此类推。
+
+### Tale of Two Questions
+
+考虑如下代码。
+
+``` javaScript
+var y = x * (yield);
+return y;
+```
+
+上面代码中，yield 好像是在问：“这里应该插入什么值？”。
+
+插入什么值由谁决定？
+
+上文说到，第一个 next() 方法是作为 generator 的启动方法，运行第一个  next() 方法后，函数将会运行到 yield 这个点。显而易见，此时的 yield 的输出值，并不是又第一个 next() 方法决定。
+
+所以说上面程序的第一个 yield 操作符的返回值由程序里面的第二个 next() 方法决定。
+
+**第二个 next 对应第一个 yield**。
+
 
 
 
