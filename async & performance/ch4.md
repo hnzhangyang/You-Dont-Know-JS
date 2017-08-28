@@ -155,7 +155,24 @@ return y;
 
 现在让我们换个角度想想，不从 generator 的角度，而从 iterator 的角度看。
 
-要理清其中的关系，首先我们需要解释下
+在 generator 函数中，yield 指令输出一个值并使函数暂停运行，等待 next() 的响应，比如如下代码。
+
+``` javaScript
+function *foo(x) {
+	var y = x * (yield "Hello");	// <-- yield a value!
+	return y;
+}
+
+var it = foo( 6 );
+
+var res = it.next();	// first `next()`, don't pass anything
+res.value;				// "Hello"
+
+res = it.next( 7 );		// pass `7` to waiting `yield`
+res.value;				// 42
+```
+
+
 
 
 
