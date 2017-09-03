@@ -170,7 +170,8 @@ res.value;				// "Hello"
 
 res = it.next( 7 );		// pass `7` to waiting `yield`
 res.value;				// 42
-```
+``` 
+
 
 
    
